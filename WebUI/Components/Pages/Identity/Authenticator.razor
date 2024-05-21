@@ -1,0 +1,36 @@
+﻿<h3>Authenticator</h3>
+@page "/"
+
+
+@code {
+    [CascadingParameter]
+    public Task<AuthenticationState>? clientAuthState{ get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            accountService.SetUpAsync();
+            if ((await clientAuthState!).User.Identity!.IsAuthenticated == true)
+            {
+                NavManager.NavigateTo(uri: "/app/Home", false, true);
+            }
+            else
+            {
+                NavManager.NavigateTo(uri: "Account/Login", false, true);
+                //NavManager.NavigateTo("/Account/Login");
+            }
+        }
+        catch
+        {
+         // NavManager.NavigateTo("/Account/Login", false, true);
+        }
+
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+       
+    }
+
+}
