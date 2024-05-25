@@ -1,8 +1,8 @@
 ﻿<Router AppAssembly="@typeof(Program).Assembly">
     <Found Context="routeData">
         <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
-            <NotAuthorized>
-            <WebUI.Components.Layout.Identity.RedirectToLogin/>
+            <NotAuthorized> 
+           <WebUI.Components.Layout.Identity.RedirectToLogin></WebUI.Components.Layout.Identity.RedirectToLogin>
             </NotAuthorized>
         </AuthorizeRouteView>
 

@@ -1,16 +1,12 @@
 ﻿using Application.Extension.Identity;
-using Application.Interface.Identity;
+using Application.Interface.Identity; 
 using Infrastructure.DataAccess;
 using Infrastructure.Repository;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection; 
+using Infrastructure.Repository.Products.Handlers.products;
 
 namespace Infrastructure.DependencyInjection
 {
@@ -44,6 +40,8 @@ namespace Infrastructure.DependencyInjection
                 });
             services.AddCascadingAuthenticationState();
             services.AddScoped<IAccount, Account>();
+            services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblies(typeof(CreateProductHandler).Assembly));
+            services.AddScoped<DataAccess.IDbContextFactory<AppDBContext>, DbContextFactory<AppDBContext>>();
             return services;
         }
     }

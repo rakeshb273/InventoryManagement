@@ -1,15 +1,20 @@
-﻿using Application.DTO.Request.Identity;
+﻿using Application.DTO.Request.ActivityTracker;
+using Application.DTO.Request.Identity;
 using Application.DTO.Response;
+using Application.DTO.Response.ActivityTracker;
 using Application.DTO.Response.Identity;
 using Application.Extension.Identity;
-using Application.Interface.Identity; 
+using Application.Interface.Identity;
+using Domain.Entities.ActivityTracker;
+using Infrastructure.DataAccess;
+using Mapster;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore; 
-using System.Security.Claims; 
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace Infrastructure.Repository
 {
-    public class Account(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager) : IAccount
+    public class Account(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, AppDBContext context) : IAccount
     {
         public async Task<ServiceResponse> CreateUserAsync(CreateUserRequestDTO model)
         {
@@ -21,10 +26,10 @@ namespace Infrastructure.Repository
             {
                 UserName = model.Email,
                 PasswordHash = model.Password,
-                Email = model.Email, 
+                Email = model.Email,
                 Name = model.Name,
             };
-            var result = CheckResult(await userManager.CreateAsync(newUser,model.Password));
+            var result = CheckResult(await userManager.CreateAsync(newUser, model.Password));
             if (!result.flag)
                 return result;
             else
@@ -37,7 +42,8 @@ namespace Infrastructure.Repository
             if (!string.IsNullOrEmpty(model.Policy))
                 return new ServiceResponse(false, "No Policy specified");
             Claim[] userClaims = [];
-            if(model.Policy.Equals(Policy.AdminPolicy ,StringComparison.OrdinalIgnoreCase) ) {
+            if (model.Policy.Equals(Policy.AdminPolicy, StringComparison.OrdinalIgnoreCase))
+            {
                 userClaims = [
                     new Claim(ClaimTypes.Email, model.Email),
                     new Claim(ClaimTypes.Role, "Admin"),
@@ -85,7 +91,7 @@ namespace Infrastructure.Repository
         private static ServiceResponse CheckResult(IdentityResult result)
         {
             if (result.Succeeded) return new ServiceResponse(true, null);
-            var errors= result.Errors.Select(x=>x.Description);
+            var errors = result.Errors.Select(x => x.Description);
             return new ServiceResponse(false, String.Join(Environment.NewLine, errors));
 
 
@@ -93,13 +99,13 @@ namespace Infrastructure.Repository
 
         public async Task<IEnumerable<GetUserWithClaimResponseDTO>> GetUsersWithClaimsAsync()
         {
-            var userList= new List<GetUserWithClaimResponseDTO>();
+            var userList = new List<GetUserWithClaimResponseDTO>();
             var allUsers = await userManager.Users.ToListAsync();
             if (allUsers.Count == 0) { return userList; }
 
-            foreach(var user in allUsers)
+            foreach (var user in allUsers)
             {
-                var currentUser= await userManager.FindByIdAsync(user.Id);
+                var currentUser = await userManager.FindByIdAsync(user.Id);
                 var currentUserClaims = await userManager.GetClaimsAsync(currentUser);
                 if (currentUserClaims.Any())
                 {
@@ -126,26 +132,26 @@ namespace Infrastructure.Repository
         {
             var user = await FindUserByEmail(model.Email);
             if (user is null) return new ServiceResponse(false, "User not found");
-            var verifyPassword = await signInManager.CheckPasswordSignInAsync(user,model.Password,false);
+            var verifyPassword = await signInManager.CheckPasswordSignInAsync(user, model.Password, false);
             if (!verifyPassword.Succeeded) return new ServiceResponse(false, "in correct password");
-            var result=await signInManager.PasswordSignInAsync(user,model.Password,false,false);
+            var result = await signInManager.PasswordSignInAsync(user, model.Password, false, false);
             if (!result.Succeeded) return new ServiceResponse(false, "Unknown error occured while loggin in");
             else
-                return new ServiceResponse(true,null);
+                return new ServiceResponse(true, null);
         }
 
         private async Task<ApplicationUser> FindUserByEmail(string email) => await userManager.FindByEmailAsync(email);
         private async Task<ApplicationUser> FindUserById(string id) => await userManager.FindByIdAsync(id);
 
 
-        public async Task SetUpAsync() => await CreateUserAsync( new CreateUserRequestDTO() { Name="Administrator",Email="admin@admin.com",Password="Admin@123",Policy=Policy.AdminPolicy} );
+        public async Task SetUpAsync() => await CreateUserAsync(new CreateUserRequestDTO() { Name = "Administrator", Email = "admin@admin.com", Password = "Admin@123", Policy = Policy.AdminPolicy });
 
         public async Task<ServiceResponse> UpdateUserAsync(ChangeUserClaimRequestDTO model)
         {
             var user = await FindUserById(model.UserId);
             if (user is null) return new ServiceResponse(false, "User not found");
 
-             var oldUserClaims= await userManager.GetClaimsAsync(user);
+            var oldUserClaims = await userManager.GetClaimsAsync(user);
 
             Claim[] newUserClaims = [
                 new Claim(ClaimTypes.Email, user.Email),
@@ -159,7 +165,7 @@ namespace Infrastructure.Repository
             var result = await userManager.RemoveClaimsAsync(user, oldUserClaims);
 
             var response = CheckResult(result);
-            if (!response.flag) return new ServiceResponse(false,response.message);
+            if (!response.flag) return new ServiceResponse(false, response.message);
 
             var addClaims = await userManager.AddClaimsAsync(user, newUserClaims);
 
@@ -168,6 +174,26 @@ namespace Infrastructure.Repository
             else return outcome;
 
 
+        }
+
+        public async Task SaveActivityAsync(ActivityTrackerRequestDTO model)
+        {
+            context.ActivityTracker.Add(model.Adapt(new Tracker()));
+            await context.SaveChangesAsync();
+
+        }
+
+        async Task<IEnumerable<ActivityTrackerResponsetDTO>> IAccount.GetActivitiesAsync()
+        {
+             var list = new List<ActivityTrackerResponsetDTO>();
+            var data =(await context.ActivityTracker.ToListAsync()).Adapt<List<ActivityTrackerResponsetDTO>>();
+            //TODO : use linq join
+            foreach (var activity in data)
+            {
+                activity.UserName= (await FindUserById(activity.UserId)).Name;
+                list.Add(activity);
+            }
+            return list;
         }
     }
 }
